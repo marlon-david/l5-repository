@@ -18,8 +18,6 @@ use Prettus\Repository\Events\RepositoryEntityCreated;
 use Prettus\Repository\Events\RepositoryEntityDeleted;
 use Prettus\Repository\Events\RepositoryEntityUpdated;
 use Prettus\Repository\Exceptions\RepositoryException;
-use Prettus\Validator\Contracts\ValidatorInterface;
-use Prettus\Validator\Exceptions\ValidatorException;
 
 /**
  * Class BaseRepository
@@ -47,11 +45,6 @@ abstract class BaseRepository implements RepositoryInterface, RepositoryCriteria
      * @var PresenterInterface
      */
     protected $presenter;
-
-    /**
-     * @var ValidatorInterface
-     */
-    protected $validator;
 
     /**
      * Validation Rules
@@ -91,7 +84,6 @@ abstract class BaseRepository implements RepositoryInterface, RepositoryCriteria
         $this->criteria = new Collection();
         $this->makeModel();
         $this->makePresenter();
-        $this->makeValidator();
         $this->boot();
     }
 
@@ -125,31 +117,6 @@ abstract class BaseRepository implements RepositoryInterface, RepositoryCriteria
      */
     public function presenter()
     {
-        return null;
-    }
-
-    /**
-     * Specify Validator class name of Prettus\Validator\Contracts\ValidatorInterface
-     *
-     * @return null
-     * @throws Exception
-     */
-    public function validator()
-    {
-
-        if (isset($this->rules) && !is_null($this->rules) && is_array($this->rules) && !empty($this->rules)) {
-            if (class_exists('Prettus\Validator\LaravelValidator')) {
-                $validator = app('Prettus\Validator\LaravelValidator');
-                if ($validator instanceof ValidatorInterface) {
-                    $validator->setRules($this->rules);
-
-                    return $validator;
-                }
-            } else {
-                throw new Exception(trans('repository::packages.prettus_laravel_validation_required'));
-            }
-        }
-
         return null;
     }
 
@@ -200,29 +167,6 @@ abstract class BaseRepository implements RepositoryInterface, RepositoryCriteria
             }
 
             return $this->presenter;
-        }
-
-        return null;
-    }
-
-    /**
-     * @param null $validator
-     *
-     * @return null|ValidatorInterface
-     * @throws RepositoryException
-     */
-    public function makeValidator($validator = null)
-    {
-        $validator = !is_null($validator) ? $validator : $this->validator();
-
-        if (!is_null($validator)) {
-            $this->validator = is_string($validator) ? $this->app->make($validator) : $validator;
-
-            if (!$this->validator instanceof ValidatorInterface) {
-                throw new RepositoryException("Class {$validator} must be an instance of Prettus\\Validator\\Contracts\\ValidatorInterface");
-            }
-
-            return $this->validator;
         }
 
         return null;
@@ -450,15 +394,6 @@ abstract class BaseRepository implements RepositoryInterface, RepositoryCriteria
      */
     public function create(array $attributes)
     {
-        if (!is_null($this->validator)) {
-            // we should pass data that has been casts by the model
-            // to make sure data type are same because validator may need to use
-            // this data to compare with data that fetch from database.
-            $attributes = $this->model->newInstance()->forceFill($attributes)->toArray();
-
-            $this->validator->with($attributes)->passesOrFail(ValidatorInterface::RULE_CREATE);
-        }
-
         $model = $this->model->newInstance($attributes);
         $model->save();
         $this->resetModel();
@@ -481,15 +416,6 @@ abstract class BaseRepository implements RepositoryInterface, RepositoryCriteria
     public function update(array $attributes, $id)
     {
         $this->applyScope();
-
-        if (!is_null($this->validator)) {
-            // we should pass data that has been casts by the model
-            // to make sure data type are same because validator may need to use
-            // this data to compare with data that fetch from database.
-            $attributes = $this->model->newInstance()->forceFill($attributes)->toArray();
-
-            $this->validator->with($attributes)->setId($id)->passesOrFail(ValidatorInterface::RULE_UPDATE);
-        }
 
         $temporarySkipPresenter = $this->skipPresenter;
 
@@ -520,10 +446,6 @@ abstract class BaseRepository implements RepositoryInterface, RepositoryCriteria
     public function updateOrCreate(array $attributes, array $values = [])
     {
         $this->applyScope();
-
-        if (!is_null($this->validator)) {
-            $this->validator->with($attributes)->passesOrFail(ValidatorInterface::RULE_UPDATE);
-        }
 
         $temporarySkipPresenter = $this->skipPresenter;
 
